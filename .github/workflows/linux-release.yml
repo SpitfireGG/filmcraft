@@ -1,0 +1,98 @@
+# Linux x86_64 release for this fork: runs the panel menu UI tests, builds the AppImage and
+# tar.gz like upstream's release (storytold/craft-common-actions), and publishes a GitHub release.
+# Push a tag `v<version>` (e.g. v0.10.0-menufix.1) to run it.
+name: Linux release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: linux-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: 1
+
+jobs:
+  test:
+    name: Panel menu UI tests
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: storytold/craft-common-actions/actions/install-linux-deps@main
+        with:
+          deb-arch: amd64
+          nfpm-version: "2.47.0"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: test-linux-x86_64
+      - name: Run the panel UI tests
+        run: cargo test --locked -p filmcraft-ui-egui --test panels_ui
+
+  linux:
+    name: Build Linux x86_64
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve version
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = tag ]; then v="${GITHUB_REF_NAME#v}"; else v=""; fi
+          echo "FILMCRAFT_VERSION=$v" >> "$GITHUB_ENV"
+          echo "FILMCRAFT_BUILD_DATE=$(date -u +%F)" >> "$GITHUB_ENV"
+          echo "FILMCRAFT_BUILD_SHA=${GITHUB_SHA}" >> "$GITHUB_ENV"
+      - uses: storytold/craft-common-actions/actions/checkout-craft-fonts@main
+        with:
+          ref: abb83316d96aa59c1cf64784289e378fe9fa5695
+      - uses: storytold/craft-common-actions/actions/install-linux-deps@main
+        with:
+          deb-arch: amd64
+          nfpm-version: "2.47.0"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-linux-x86_64
+      - name: Build and package (AppImage, tar.gz)
+        env:
+          CRAFT_FONTS_DIR: ${{ github.workspace }}/craft-fonts
+          CRAFT_FONTS_REQUIRED: "1"
+        run: |
+          [ -n "$FILMCRAFT_VERSION" ] || unset FILMCRAFT_VERSION
+          packaging/linux/package.sh --formats "appimage tar"
+      - name: Smoke test
+        run: |
+          chmod +x dist/release/*.AppImage
+          APPIMAGE_EXTRACT_AND_RUN=1 dist/release/*.AppImage --version
+          (cd dist/release && sha256sum *.AppImage *.tar.gz > SHA256SUMS.txt)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-linux-x86_64
+          path: dist/release/*
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: [test, linux]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-linux-x86_64
+          path: dist
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/*.AppImage dist/*.tar.gz dist/SHA256SUMS.txt \
+            --repo "$GITHUB_REPOSITORY" --title "FilmCraft ${GITHUB_REF_NAME}" \
+            --notes "FilmCraft built from storytold/filmcraft with a fix for panel menus that stayed open: the panel ≡ menu now closes on any press outside it (also when the pointer moves a little), and clicking ≡ again closes it."
