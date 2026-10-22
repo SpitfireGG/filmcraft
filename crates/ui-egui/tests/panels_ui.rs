@@ -781,3 +781,27 @@ fn effects_are_indented_under_their_folders() {
         assert!(b >= a + 12.0, "`{inner}` ({b}) is not indented under `{outer}` ({a})");
     }
 }
+
+/// A press outside the panel "≡" menu closes it even when the pointer moves a few points before
+/// release (a slightly moving click or tap, or a drag), not only on a perfectly still click.
+#[test]
+fn panel_menu_closes_on_a_press_that_moves_outside_it() {
+    let mut d = Driver::demo();
+    d.click("panel.menu.Program");
+    assert!(d.has("panel.menu.Program.maximize"), "the menu opened");
+    d.ok("ui.drag", json!({"from": {"id": "panel.Timeline", "fx": 0.6, "fy": 0.7}, "to": {"id": "panel.Timeline", "fx": 0.62, "fy": 0.72}, "steps": 4}));
+    d.frames(3);
+    assert!(!d.has("panel.menu.Program.maximize"), "a press outside closes the menu");
+}
+
+/// Clicking the "≡" of an open panel menu closes it again instead of reopening it.
+#[test]
+fn panel_menu_button_toggles_the_menu() {
+    let mut d = Driver::demo();
+    d.click("panel.menu.Program");
+    assert!(d.has("panel.menu.Program.maximize"), "the menu opened");
+    d.click("panel.menu.Program");
+    assert!(!d.has("panel.menu.Program.maximize"), "a second click on ≡ closes the menu");
+    d.click("panel.menu.Program");
+    assert!(d.has("panel.menu.Program.maximize"), "and a third opens it again");
+}

@@ -280,6 +280,14 @@ impl FilmcraftApp {
                     }
                 }
                 DockAction::PanelMenu(panel, pos) => {
+                    // "≡" toggles: the press of this click already closed this panel's menu
+                    // (or, for a press and release in one frame, the menu is still open)
+                    let dismissed = ctx.data_mut(|data| data.remove_temp::<PanelKind>(panels::panel_menu_dismissed_id()));
+                    let open = ctx.data(|data| data.get_temp::<(PanelKind, egui::Pos2)>(egui::Id::new("panel-menu")));
+                    if dismissed == Some(panel) || open.is_some_and(|(p, _)| p == panel) {
+                        ctx.data_mut(|data| data.remove::<(PanelKind, egui::Pos2)>(egui::Id::new("panel-menu")));
+                        continue;
+                    }
                     let frame = ctx.cumulative_frame_nr();
                     ctx.data_mut(|data| {
                         data.insert_temp(egui::Id::new("panel-menu"), (panel, pos));

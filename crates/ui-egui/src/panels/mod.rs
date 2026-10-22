@@ -276,6 +276,10 @@ pub fn panel_menu_popup(app: &mut FilmcraftApp, ui: &mut egui::Ui) {
     drag_ghost(app, ui);
     // bins opened in new windows (Project panel)
     project::floating(app, ui.ctx());
+    // the dock handled this frame's "≡" click before this runs; once the press is over, forget it
+    if !ui.ctx().input(|i| i.pointer.any_down()) {
+        ui.ctx().data_mut(|d| d.remove_temp::<PanelKind>(panel_menu_dismissed_id()));
+    }
     let id = egui::Id::new("panel-menu");
     let Some((p, pos)) = ui.ctx().data(|d| d.get_temp::<(PanelKind, egui::Pos2)>(id)) else { return };
     let mut close = false;
@@ -348,11 +352,40 @@ pub fn panel_menu_popup(app: &mut FilmcraftApp, ui: &mut egui::Ui) {
             app.auto.add("panel.menu.scroll", scroll.inner_rect, "Panel menu");
         });
     });
-    // A click elsewhere or Escape closes the menu. The click that opened it is over the tab, not
-    // the menu, and must not close it again in the same frame.
-    let fresh = ui.ctx().data(|d| d.get_temp::<u64>(egui::Id::new("panel-menu-opened"))) == Some(ui.ctx().cumulative_frame_nr());
-    if close || (!fresh && area.response.clicked_elsewhere()) || crate::widgets::escape_closes(ui.ctx()) {
-        ui.ctx().data_mut(|d| d.remove::<(PanelKind, egui::Pos2)>(id));
+    // A press elsewhere, a click elsewhere or Escape closes the menu. The click that opened it is
+    // over the tab, not the menu, and must not close it again in the same frame.
+    let ctx = ui.ctx();
+    let fresh = ctx.data(|d| d.get_temp::<u64>(egui::Id::new("panel-menu-opened"))) == Some(ctx.cumulative_frame_nr());
+    let pressed_outside = !fresh && pressed_outside_menu(ctx, area.response.layer_id, area.response.rect);
+    if pressed_outside {
+        // the press may be on this panel's "≡": its click must not open the menu straight again
+        ctx.data_mut(|d| d.insert_temp(panel_menu_dismissed_id(), p));
+    }
+    if close || pressed_outside || (!fresh && area.response.clicked_elsewhere()) || crate::widgets::escape_closes(ctx) {
+        ctx.data_mut(|d| d.remove::<(PanelKind, egui::Pos2)>(id));
+    }
+}
+
+/// Remembers which panel's menu a press outside it just closed, until that click ends.
+pub(crate) fn panel_menu_dismissed_id() -> egui::Id {
+    egui::Id::new("panel-menu-dismissed")
+}
+
+/// A mouse or touch press this frame that lands outside a popup menu. Unlike
+/// `Response::clicked_elsewhere`, it does not wait for a still click: a press that turns into a
+/// drag (or a tap that moves a few points) still closes the menu, as menus do everywhere else.
+/// Presses on popups above the menu (its submenus, tooltips) count as inside.
+pub(crate) fn pressed_outside_menu(ctx: &egui::Context, menu: egui::LayerId, rect: egui::Rect) -> bool {
+    let Some(pos) = ctx.input(|i| if i.pointer.any_pressed() { i.pointer.press_origin().or(i.pointer.interact_pos()) } else { None }) else {
+        return false;
+    };
+    if rect.contains(pos) {
+        return false;
+    }
+    match ctx.layer_id_at(pos) {
+        Some(layer) if layer == menu => false,
+        Some(layer) => layer.order < egui::Order::Foreground,
+        None => true,
     }
 }
 
