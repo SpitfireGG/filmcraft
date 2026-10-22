@@ -67,7 +67,9 @@ jobs:
           CRAFT_FONTS_REQUIRED: "1"
         run: |
           [ -n "$FILMCRAFT_VERSION" ] || unset FILMCRAFT_VERSION
-          packaging/linux/package.sh --formats "appimage tar"
+          # Speech-to-text (Transcribe, auto captions) is an optional feature, off upstream.
+          cargo build --release --locked -p filmcraft -p filmcraft-cli --features filmcraft/whisper,filmcraft-cli/whisper
+          packaging/linux/package.sh --skip-build --formats "appimage tar"
       - name: Smoke test
         run: |
           chmod +x dist/release/*.AppImage
@@ -95,4 +97,4 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" dist/*.AppImage dist/*.tar.gz dist/SHA256SUMS.txt \
             --repo "$GITHUB_REPOSITORY" --title "FilmCraft ${GITHUB_REF_NAME}" \
-            --notes "FilmCraft built from storytold/filmcraft with a fix for panel menus that stayed open: the panel ≡ menu now closes on any press outside it (also when the pointer moves a little), and clicking ≡ again closes it."
+            --notes "FilmCraft built from storytold/filmcraft with speech-to-text (Transcribe, auto captions) turned on, and a fix for panel menus that stayed open: the panel ≡ menu now closes on any press outside it (also when the pointer moves a little), and clicking ≡ again closes it."
