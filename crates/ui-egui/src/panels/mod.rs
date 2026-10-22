@@ -278,7 +278,7 @@ pub fn panel_menu_popup(app: &mut FilmcraftApp, ui: &mut egui::Ui) {
     project::floating(app, ui.ctx());
     // the dock handled this frame's "≡" click before this runs; once the press is over, forget it
     if !ui.ctx().input(|i| i.pointer.any_down()) {
-        ui.ctx().data_mut(|d| d.remove_temp::<PanelKind>(panel_menu_dismissed_id()));
+        ui.ctx().data_mut(|d| d.remove::<PanelKind>(panel_menu_dismissed_id()));
     }
     let id = egui::Id::new("panel-menu");
     let Some((p, pos)) = ui.ctx().data(|d| d.get_temp::<(PanelKind, egui::Pos2)>(id)) else { return };
