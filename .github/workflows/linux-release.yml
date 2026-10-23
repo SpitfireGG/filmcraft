@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: storytold/craft-common-actions/actions/install-linux-deps@main
         with:
           deb-arch: amd64
@@ -43,7 +43,7 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Resolve version
         run: |
           if [ "${GITHUB_REF_TYPE}" = tag ]; then v="${GITHUB_REF_NAME#v}"; else v=""; fi
@@ -75,7 +75,7 @@ jobs:
           chmod +x dist/release/*.AppImage
           APPIMAGE_EXTRACT_AND_RUN=1 dist/release/*.AppImage --version
           (cd dist/release && sha256sum *.AppImage *.tar.gz > SHA256SUMS.txt)
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-linux-x86_64
           path: dist/release/*
@@ -87,7 +87,7 @@ jobs:
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: release-linux-x86_64
           path: dist
